@@ -12,19 +12,38 @@ import (
 	"github.com/blendlabs/go-util/collections"
 )
 
+const (
+	// ServerCount is the number of servers.
+	ServerCount = 8
+	// ServerWorkerCount is the number of workers (goroutines) per server.
+	ServerWorkerCount = 8
+	// CachedResourceCount is the number of items to cache.
+	CachedResourceCount = 1 << 10
+	// CachedResourceIdentifierLength is the length of the cache resource identifier.
+	CachedResourceIdentifierLength = 8
+	// AverageCacheMissDurationMillis is the average cache miss work time.
+	AverageCacheMissDurationMillis = 20
+	// ServerIdentifierLength is the length of server identifiers.
+	ServerIdentifierLength = 3
+)
+
 // generateWorkTime uses exprand to generate a reasonable work length
 // on the order of milliseconds.
 func generateWorkTime() time.Duration {
-	randMillis := rand.ExpFloat64() * 20
+	randMillis := rand.ExpFloat64() * AverageCacheMissDurationMillis
 	return time.Duration(randMillis) * time.Millisecond
 }
 
-// generateID returns a new random, 8 character, identifier
-func generateID() string {
-	return util.String.RandomString(8)
+func generateServerIdentifier() string {
+	return util.String.RandomString(3)
 }
 
-func hash(s string) uint32 {
+// generateID returns a new random, 8 character, identifier
+func generateCachedResourceIdentifier() string {
+	return util.String.RandomString(CachedResourceIdentifierLength)
+}
+
+func hashIdentifier(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return h.Sum32()
@@ -37,18 +56,15 @@ type Request struct {
 	Served    time.Time
 	Completed time.Time
 
-	WorkTime time.Duration
-
+	WorkTime    time.Duration
 	IsCacheMiss bool
-
-	ID       string
-	Resource string
+	Resource    string
 }
 
 // NewServer creates a new server.
 func NewServer() *Server {
 	return &Server{
-		ID:        generateID(),
+		ID:        generateServerIdentifier(),
 		Resources: collections.NewSetOfString(),
 		Requests:  make(chan *Request, 32),
 	}
@@ -56,12 +72,10 @@ func NewServer() *Server {
 
 // Server is a server in the dispatch pool.
 type Server struct {
-	ID string
-
+	ID           string
+	Requests     chan *Request
 	resourceLock sync.RWMutex
 	Resources    collections.SetOfString
-
-	Requests chan *Request
 }
 
 // Run runs the server.
@@ -101,6 +115,7 @@ func (s *Server) HandleRequest(req *Request) {
 
 // Router is a type that sends requests to relevant backend servers.
 type Router interface {
+	Name() string
 	SetServers([]*Server)
 	Route(req *Request) *Server
 }
@@ -109,12 +124,14 @@ type hashedRouter struct {
 	Servers []*Server
 }
 
+func (hr hashedRouter) Name() string { return "Hashed" }
+
 func (hr *hashedRouter) SetServers(servers []*Server) {
 	hr.Servers = servers
 }
 
 func (hr *hashedRouter) Route(req *Request) *Server {
-	hv := hash(req.Resource)
+	hv := hashIdentifier(req.Resource)
 	index := int(hv) % len(hr.Servers)
 	return hr.Servers[index]
 }
@@ -122,6 +139,10 @@ func (hr *hashedRouter) Route(req *Request) *Server {
 type roundRobinRouter struct {
 	Index   int32
 	Servers []*Server
+}
+
+func (rrr roundRobinRouter) Name() string {
+	return "Round Robin"
 }
 
 func (rrr *roundRobinRouter) SetServers(servers []*Server) {
@@ -141,22 +162,16 @@ func (rrr *roundRobinRouter) Route(req *Request) *Server {
 func NewResourceSet() []string {
 	var resources []string
 	for x := 0; x < 1024; x++ {
-		resources = append(resources, generateID())
+		resources = append(resources, generateCachedResourceIdentifier())
 	}
 	return resources
 }
 
 // NewSimulation returns a new simulation.
 func NewSimulation(router Router) *Simulation {
-	servers := []*Server{
-		NewServer(),
-		NewServer(),
-		NewServer(),
-		NewServer(),
-		NewServer(),
-		NewServer(),
-		NewServer(),
-		NewServer(),
+	var servers []*Server
+	for x := 0; x < ServerCount; x++ {
+		servers = append(servers, NewServer())
 	}
 	router.SetServers(servers)
 	return &Simulation{
@@ -182,7 +197,6 @@ func (s *Simulation) selectRandomResource() string {
 
 func (s *Simulation) createRequest() *Request {
 	req := &Request{
-		ID:       generateID(),
 		Resource: s.selectRandomResource(),
 		WorkTime: generateWorkTime(),
 	}
@@ -221,9 +235,9 @@ func (s *Simulation) Stop() {
 	s.abort <- true
 }
 
-func simulate(label string, router Router) {
+func simulate(router Router) {
 	println()
-	println(label, "Starting 10 second simulation")
+	println(router.Name(), "Starting 10 second simulation")
 	sim := NewSimulation(router)
 	sim.Run()
 	time.Sleep(10 * time.Second)
@@ -241,7 +255,7 @@ func simulate(label string, router Router) {
 			misses++
 		}
 	}
-	println(label, "Simulation Results")
+	println(router.Name(), "Simulation Results")
 	fmt.Printf("Throughput %0.2f rps\n", float64(len(sim.Requests))/10.0)
 	fmt.Printf("Average Total Time %v\n", util.Math.MeanOfDuration(totalTimes))
 	fmt.Printf("Average Work Time %v\n", util.Math.MeanOfDuration(workTimes))
@@ -250,6 +264,6 @@ func simulate(label string, router Router) {
 }
 
 func main() {
-	simulate("Round Robin", new(roundRobinRouter))
-	simulate("Hashed", new(hashedRouter))
+	simulate(new(roundRobinRouter))
+	simulate(new(hashedRouter))
 }
