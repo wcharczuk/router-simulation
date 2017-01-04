@@ -138,9 +138,10 @@ func (s *Simulation) Initialize() {
 // CreateServer creates a new server.
 func (s Simulation) CreateServer() *Server {
 	return &Server{
-		ID:        util.UUIDv4().ToShortString(),
-		Resources: collections.NewSetOfString(),
-		Requests:  make(chan *Request, s.ServerWorkerCount()),
+		ID:          util.UUIDv4().ToShortString(),
+		Resources:   collections.NewSetOfString(),
+		WorkerCount: s.ServerWorkerCount(),
+		Requests:    make(chan *Request, s.ServerWorkerCount()),
 	}
 }
 
@@ -163,6 +164,14 @@ func (s *Simulation) createRequest() *Request {
 	}
 	s.Requests = append(s.Requests, req)
 	return req
+}
+
+func (s *Simulation) processArrival() {
+	req := s.createRequest()
+	req.Arrival = time.Now()
+	server := s.Router.Route(req)
+	req.Routed = time.Now()
+	server.Requests <- req
 }
 
 func (s *Simulation) processEvent() {
@@ -197,11 +206,7 @@ func (s *Simulation) Start() {
 			case <-s.abort:
 				return
 			default:
-				req := s.createRequest()
-				req.Arrival = time.Now()
-				server := s.Router.Route(req)
-				req.Routed = time.Now()
-				server.Requests <- req
+				s.processArrival()
 			}
 		}
 	}()
