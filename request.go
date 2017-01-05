@@ -12,4 +12,5 @@ type Request struct {
 	WorkTime    time.Duration
 	IsCacheMiss bool
 	Resource    string
+	ServedBy    string
 }

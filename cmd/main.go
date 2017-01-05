@@ -10,15 +10,21 @@ import (
 )
 
 func killRandomServer(s *simulation.Simulation) {
+	fmt.Printf("%-6s Killing Random Server\n", fmt.Sprintf("%v", time.Now().Sub(s.Started)))
 	randomIndex := rand.Intn(len(s.Servers))
 	s.Servers = append(s.Servers[0:randomIndex], s.Servers[randomIndex+1:]...)
 	s.Router.SetServers(s.Servers)
+	s.SetServerCount(s.ServerCount() - 1)
 }
 
 func doubleServers(s *simulation.Simulation) {
+	fmt.Printf("%-6s Doubling Server Pool\n", fmt.Sprintf("%v", simulation.RoundDuration(time.Now().Sub(s.Started), time.Millisecond)))
 	for x := 0; x < s.ServerCount(); x++ {
-		s.Servers = append(s.Servers, s.CreateServer())
+		svr := s.CreateServer()
+		svr.Run(s.Abort())
+		s.Servers = append(s.Servers, svr)
 	}
+	s.SetServerCount(s.ServerCount() << 1)
 	s.Router.SetServers(s.Servers)
 }
 
@@ -80,9 +86,15 @@ func simulate(router simulation.Router) {
 	fmt.Printf("Not Completed        : %d\n", notCompleted)
 	fmt.Printf("Completed Requests   : %d\n", totalRequests)
 	fmt.Printf("Cache Miss Rate %d/%d ~= %0.2f%%\n", misses, totalRequests, float64(misses)/float64(totalRequests)*100)
+	println("Server Stats")
+	println("---------------------------------")
+	for _, svr := range sim.Servers {
+		fmt.Printf("%s %d\n", svr.ID, svr.TotalServed)
+	}
 }
 
 func main() {
 	simulate(new(simulation.RoundRobinRouter))
 	simulate(new(simulation.HashedRouter))
+	//simulate(new(simulation.ConsistenHashRouter))
 }

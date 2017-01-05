@@ -18,3 +18,52 @@ func HashIdentifier(s string) uint32 {
 	h.Write([]byte(s))
 	return h.Sum32()
 }
+
+// ExplodeDuration returns all the constitent parts of a time.Duration.
+func ExplodeDuration(duration time.Duration) (
+	hours time.Duration,
+	minutes time.Duration,
+	seconds time.Duration,
+	milliseconds time.Duration,
+	microseconds time.Duration,
+) {
+	hours = duration / time.Hour
+	hoursRemainder := duration - (hours * time.Hour)
+	minutes = hoursRemainder / time.Minute
+	minuteRemainder := hoursRemainder - (minutes * time.Minute)
+	seconds = minuteRemainder / time.Second
+	secondsRemainder := minuteRemainder - (seconds * time.Second)
+	milliseconds = secondsRemainder / time.Millisecond
+	millisecondsRemainder := secondsRemainder - (milliseconds * time.Millisecond)
+	microseconds = millisecondsRemainder / time.Microsecond
+	return
+}
+
+// RoundDuration rounds a duration to the given place.
+func RoundDuration(duration, roundTo time.Duration) time.Duration {
+	hours, minutes, seconds, milliseconds, microseconds := ExplodeDuration(duration)
+	hours = hours * time.Hour
+	minutes = minutes * time.Minute
+	seconds = seconds * time.Second
+	milliseconds = milliseconds * time.Millisecond
+	microseconds = microseconds * time.Microsecond
+
+	var total time.Duration
+	if hours >= roundTo {
+		total = total + hours
+	}
+	if minutes >= roundTo {
+		total = total + minutes
+	}
+	if seconds >= roundTo {
+		total = total + seconds
+	}
+	if milliseconds >= roundTo {
+		total = total + milliseconds
+	}
+	if microseconds >= roundTo {
+		total = total + microseconds
+	}
+
+	return total
+}

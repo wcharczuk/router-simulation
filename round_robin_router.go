@@ -17,6 +17,7 @@ func (rrr RoundRobinRouter) Name() string {
 // SetServers sets the server registry.
 func (rrr *RoundRobinRouter) SetServers(servers []*Server) {
 	rrr.Servers = servers
+	rrr.Index = 0
 }
 
 // Route returns which server to send the request to.

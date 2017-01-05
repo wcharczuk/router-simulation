@@ -51,6 +51,11 @@ type Simulation struct {
 	abort chan bool
 }
 
+// Abort returns the abort channel.
+func (s *Simulation) Abort() chan bool {
+	return s.abort
+}
+
 // AddEvent adds an event to the simulation at a given offset from start.
 func (s *Simulation) AddEvent(at time.Duration, action func(*Simulation)) {
 	events := s.Events.AsSlice()

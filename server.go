@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blendlabs/go-util/collections"
@@ -14,6 +15,8 @@ type Server struct {
 	ResourceLock sync.RWMutex
 	WorkerCount  int
 	Resources    collections.SetOfString
+
+	TotalServed int32
 }
 
 // Run runs the server.
@@ -36,6 +39,7 @@ func (s *Server) serve(abort chan bool) {
 
 // HandleRequest processes a request.
 func (s *Server) HandleRequest(req *Request) {
+	atomic.AddInt32(&s.TotalServed, 1)
 	s.ResourceLock.RLock()
 	if s.Resources.Contains(req.Resource) {
 		s.ResourceLock.RUnlock()
@@ -48,5 +52,6 @@ func (s *Server) HandleRequest(req *Request) {
 	time.Sleep(req.WorkTime)
 	s.Resources.Add(req.Resource)
 	req.Completed = time.Now()
+	req.ServedBy = s.ID
 	s.ResourceLock.Unlock()
 }
