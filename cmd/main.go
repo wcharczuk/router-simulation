@@ -34,7 +34,7 @@ func simulate(router simulation.Router) {
 	sim := simulation.New(router)
 	sim.SetSimulationLength(8 * time.Second)
 	sim.SetServerCount(8)
-	sim.SetServerWorkerCount(1024)
+	sim.SetServerWorkerCount(8)
 	sim.SetCachedResourceCount(1 << 10)
 	sim.SetCachedResourceFetchDuration(16 * time.Millisecond)
 
@@ -44,7 +44,7 @@ func simulate(router simulation.Router) {
 	//sim.AddEvent(3*time.Second, killRandomServer)
 	sim.AddEvent(4*time.Second, doubleServers)
 
-	println(router.Name(), "Starting", fmt.Sprintf("%v", sim.SimulationLength()), "simulation")
+	println("==>", router.Name(), "Starting", fmt.Sprintf("%v", sim.SimulationLength()), "simulation")
 	sim.Run()
 
 	var totalTimes []time.Duration
@@ -86,7 +86,7 @@ func simulate(router simulation.Router) {
 	fmt.Printf("Not Completed        : %d\n", notCompleted)
 	fmt.Printf("Completed Requests   : %d\n", totalRequests)
 	fmt.Printf("Cache Miss Rate %d/%d ~= %0.2f%%\n", misses, totalRequests, float64(misses)/float64(totalRequests)*100)
-	println("Server Stats")
+	println("\nServer Stats")
 	println("---------------------------------")
 	for _, svr := range sim.Servers {
 		fmt.Printf("%s %d\n", svr.ID, svr.TotalServed)
@@ -96,5 +96,5 @@ func simulate(router simulation.Router) {
 func main() {
 	simulate(new(simulation.RoundRobinRouter))
 	simulate(new(simulation.HashedRouter))
-	//simulate(new(simulation.ConsistenHashRouter))
+	simulate(simulation.NewConsistentHashRouter(1<<10, 1.5))
 }
